@@ -1,5 +1,5 @@
 // ------------------------
-// server.js
+// server.js (โค้ดที่ 2 เวอร์ชันอัปเดต)
 // ------------------------
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -22,8 +22,18 @@ const openai = new OpenAI({
   apiKey: OPENAI_API_KEY, // ใช้ API key จาก Environment Variable
 });
 
-// สร้าง MongoClient
-const client = new MongoClient(MONGO_URI);
+// ประกาศตัวแปร client แบบ Global (ใช้ร่วมกัน)
+let mongoClient = null;
+
+// ฟังก์ชันเชื่อมต่อ MongoDB (แบบ global client)
+async function connectDB() {
+  if (!mongoClient) {
+    mongoClient = new MongoClient(MONGO_URI);
+    await mongoClient.connect();
+    console.log("MongoDB connected (global client).");
+  }
+  return mongoClient;
+}
 
 // ใช้ bodyParser
 app.use(bodyParser.json());
@@ -223,11 +233,13 @@ app.post('/webhook', async (req, res) => {
 // ------------------------
 async function getChatHistory(senderId) {
   try {
-    await client.connect();
+    // เรียกใช้งาน client global
+    const client = await connectDB();
     const db = client.db("chatbot");
     const collection = db.collection("chat_history");
 
-    const chats = await collection.find({ senderId }).toArray();
+    // ดึงประวัติการแชท
+    const chats = await collection.find({ senderId }).sort({ timestamp: 1 }).toArray();
 
     // แปลงเป็นรูปแบบข้อความตาม role: "user"
     return chats.map((chat) => ({
@@ -237,8 +249,6 @@ async function getChatHistory(senderId) {
   } catch (error) {
     console.error("Error fetching chat history:", error);
     return [];
-  } finally {
-    await client.close();
   }
 }
 
@@ -272,7 +282,8 @@ async function getAssistantResponse(history, message) {
 // ------------------------
 async function saveChatHistory(senderId, message, response) {
   try {
-    await client.connect();
+    // เรียกใช้งาน client global
+    const client = await connectDB();
     const db = client.db("chatbot");
     const collection = db.collection("chat_history");
 
@@ -287,8 +298,6 @@ async function saveChatHistory(senderId, message, response) {
     console.log("บันทึกประวัติการแชทสำเร็จ");
   } catch (error) {
     console.error("Error saving chat history:", error);
-  } finally {
-    await client.close();
   }
 }
 
@@ -312,7 +321,7 @@ function sendTextMessage(senderId, response) {
 
   // วนลูปส่งรูปทีละ match
   matches.forEach(match => {
-    const imageUrl = match[2];  // URL
+    const imageUrl = match[2];  // URL = match[2] จาก pattern
     sendImageMessage(senderId, imageUrl);
   });
 }
@@ -374,6 +383,12 @@ function sendImageMessage(senderId, imageUrl) {
 // ------------------------
 // Start Server
 // ------------------------
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+  // เชื่อมต่อ MongoDB ตอนสตาร์ทเซิร์ฟเวอร์ (เหมือนโค้ดที่ 1)
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error("MongoDB connect error at startup:", err);
+  }
 });
