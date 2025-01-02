@@ -53,6 +53,7 @@ const systemInstructions = `
 • ถ้าลูกค้าไม่แจ้งว่าจะชำระเงินช่องทางไหน ให้เข้าใจว่าเก็บเงินปลายทางเสมอ
 • **ส่งรูปสินค้าได้เฉพาะ** เมื่อข้อความล่าสุดของลูกค้าขอดูรูปสินค้าเท่านั้น  
   - หากขอรูปสร้อยคอสายคาด: "[SEND_IMAGE_SROI:https://i.imgur.com/OgW7m9x.jpeg]"
+  - หากขอรูป “ขนาดสร้อยคอโดยประมาณ”: "[SEND_IMAGE_LENGTH:https://i.imgur.com/S6TiC4R.jpeg]"
 • **ห้ามใส่ [SEND_IMAGE_...]** หากผู้ใช้ไม่ได้พิมพ์ว่าต้องการดูรูปในข้อความล่าสุด   (หรือยังไม่เคยขอดูรูปมาก่อน) 
 • ถ้าลูกค้าไม่ได้ขอรูปซ้ำ อย่าใส่ [SEND_IMAGE_SROI:…] ซ้ำ, ถ้าลูกค้าขอรูปครั้งเดียวก็ควรใส่ครั้งเดียว
 • หากต้องการถามเพิ่มหรือขอข้อมูลใด ๆ จากลูกค้า ให้ขึ้นต้นด้วย “ขออนุญาติถาม...” หรือ “ขออนุญาต...” เพื่อความสุภาพ  
@@ -297,7 +298,7 @@ async function saveChatHistory(senderId, message, response) {
 // ------------------------
 function sendTextMessage(senderId, response) {
   // Regex แบบ global เพื่อจับหลายคำสั่ง [SEND_IMAGE_XXX:URL]
-  const imageRegex = /\[SEND_IMAGE_(HUNN|SROI):(https?:\/\/[^\s]+)\]/g;
+  const imageRegex = /\[SEND_IMAGE_(SROI|LENGTH):(https?:\/\/[^\s]+)\]/g;
 
   // matchAll เพื่อดึง match หลายรายการ
   const matches = [...response.matchAll(imageRegex)];
