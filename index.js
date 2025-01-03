@@ -202,12 +202,28 @@ async function checkAndMarkClosed(senderId, assistantResponse) {
   }
 }
 
+async function addUserToFollowupLabel(psid) {
+  return new Promise((resolve, reject) => {
+    request({
+      uri: `https://graph.facebook.com/v12.0/${LABEL_ID}/label`, // LABEL_ID คือ 1234567890
+      qs: { access_token: PAGE_ACCESS_TOKEN },
+      method: 'POST',
+      json: { user: psid },
+    }, (err, resBody) => {
+      if (err) {
+        return reject(err);
+      }
+      resolve(resBody);
+    });
+  });
+}
+
 async function markSaleAsClosed(senderId) {
   try {
     const client = await connectDB();
     const db = client.db("chatbot");
     const closedSalesCollection = db.collection("closed_sales");
-
+    addUserToFollowupLabel(senderId)
     // ใช้ updateOne แบบ upsert เพื่อไม่ต้องแทรก duplicate ถ้าเคยปิดไปแล้ว
     await closedSalesCollection.updateOne(
       { senderId: senderId },
@@ -225,6 +241,8 @@ async function markSaleAsClosed(senderId) {
     console.error("Error closing sale:", error);
   }
 }
+
+
 // ------------------------
 
 // ------------------------
