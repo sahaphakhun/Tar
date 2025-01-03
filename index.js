@@ -197,7 +197,7 @@ async function saveChatHistory(senderId, userMessage, assistantResponse) {
 async function checkAndMarkClosed(senderId, assistantResponse) {
   // เงื่อนไขง่าย ๆ: ถ้าในข้อความ assistantResponse มีคำว่า
   // “เพื่อเป็นการรับประกันสินค้า รบกวนลูกค้า” ให้ถือว่าปิดการขาย
-  if (assistantResponse.includes("เพื่อเป็นการรับประกันสินค้า รบกวนลูกค้า")) {
+  if (assistantResponse.includes("ขอบคุณที่สั่งซื้อสินค้าครับ")) {
     await markSaleAsClosed(senderId);
   }
 }
