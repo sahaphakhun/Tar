@@ -199,8 +199,10 @@ async function checkAndMarkClosed(senderId, assistantResponse) {
   // “เพื่อเป็นการรับประกันสินค้า รบกวนลูกค้า” ให้ถือว่าปิดการขาย
   if (assistantResponse.includes("ขอบคุณสำหรับการสั่งซื้อสินค้า")) {
     await markSaleAsClosed(senderId);
-  }else if(assistantResponse.includes("ขอบคุณที่สั่งซื้อสินค้าครับ")) {
+    await addUserToFollowupLabel(senderId);
+  }else if(assistantResponse.includes("ขอบคุณที่สั่งซื้อสินค้า")) {
     await markSaleAsClosed(senderId);
+    await addUserToFollowupLabel(senderId);
   }
 }
 
@@ -225,7 +227,6 @@ async function markSaleAsClosed(senderId) {
     const client = await connectDB();
     const db = client.db("chatbot");
     const closedSalesCollection = db.collection("closed_sales");
-    await addUserToFollowupLabel(senderId);
     // ใช้ updateOne แบบ upsert เพื่อไม่ต้องแทรก duplicate ถ้าเคยปิดไปแล้ว
     await closedSalesCollection.updateOne(
       { senderId: senderId },
