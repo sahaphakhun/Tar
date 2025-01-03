@@ -19,7 +19,7 @@ const MONGO_URI = process.env.MONGO_URI;
 
 const GOOGLE_CLIENT_EMAIL = "aitar-888@eminent-wares-446512-j8.iam.gserviceaccount.com";
 const GOOGLE_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9...<etc>...QKBgQ==\n-----END PRIVATE KEY-----\n`;
-const GOOGLE_DOC_ID = "1PF5GxEHCVaMAYyrwLCcX_6gmQm3beCz2Ss1pz2A-NHA";
+const GOOGLE_DOC_ID = "1JUSUxuuWCt50w_qpJyT2pYiApJJXFHMhwiox05G11uA";
 
 let systemInstructions = "";
 
