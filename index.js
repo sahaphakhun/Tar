@@ -199,6 +199,8 @@ async function checkAndMarkClosed(senderId, assistantResponse) {
   // “เพื่อเป็นการรับประกันสินค้า รบกวนลูกค้า” ให้ถือว่าปิดการขาย
   if (assistantResponse.includes("ขอบคุณสำหรับการสั่งซื้อสินค้า")) {
     await markSaleAsClosed(senderId);
+  }else if(assistantResponse.includes("ขอบคุณที่สั่งซื้อสินค้าครับ")) {
+    await markSaleAsClosed(senderId);
   }
 }
 
