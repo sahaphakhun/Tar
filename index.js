@@ -223,7 +223,7 @@ async function markSaleAsClosed(senderId) {
     const client = await connectDB();
     const db = client.db("chatbot");
     const closedSalesCollection = db.collection("closed_sales");
-    addUserToFollowupLabel(senderId)
+    await addUserToFollowupLabel(senderId);
     // ใช้ updateOne แบบ upsert เพื่อไม่ต้องแทรก duplicate ถ้าเคยปิดไปแล้ว
     await closedSalesCollection.updateOne(
       { senderId: senderId },
