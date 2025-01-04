@@ -22,8 +22,6 @@ const GOOGLE_DOC_ID = "1JUSUxuuWCt50w_qpJyT2pYiApJJXFHMhwiox05G11uA";
 
 let systemInstructions = "";
 
-let systemInstructions = "";
-
 // ------------------------
 // ฟังก์ชัน: fetchSystemInstructions
 // ------------------------
