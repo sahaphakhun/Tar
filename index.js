@@ -5,7 +5,6 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const request = require('request');
 const { OpenAI } = require('openai');
-
 const { google } = require('googleapis');
 const { MongoClient } = require('mongodb');
 
@@ -23,17 +22,28 @@ const GOOGLE_DOC_ID = "1JUSUxuuWCt50w_qpJyT2pYiApJJXFHMhwiox05G11uA";
 
 let systemInstructions = "";
 
+let systemInstructions = "";
+
+// ------------------------
+// ฟังก์ชัน: fetchSystemInstructions
+// ------------------------
 async function fetchSystemInstructions() {
   try {
+    // สร้าง JWT Auth
     const auth = new google.auth.JWT({
       email: GOOGLE_CLIENT_EMAIL,
       key: GOOGLE_PRIVATE_KEY,
       scopes: ['https://www.googleapis.com/auth/documents.readonly'],
     });
+
+    // สร้าง instance ของ Google Docs API
     const docs = google.docs({ version: 'v1', auth });
+
+    // ดึงข้อมูลเอกสาร
     const res = await docs.documents.get({ documentId: GOOGLE_DOC_ID });
     const docContent = res.data.body?.content || [];
 
+    // ดึงข้อความทั้งหมดจากเอกสาร
     let fullText = '';
     docContent.forEach((struct) => {
       if (struct.paragraph?.elements) {
@@ -44,6 +54,8 @@ async function fetchSystemInstructions() {
         });
       }
     });
+
+    // กำหนดค่า systemInstructions เป็นสตริง
     systemInstructions = fullText.trim();
 
     console.log('---------- Document Content ----------');
@@ -55,12 +67,19 @@ async function fetchSystemInstructions() {
   }
 }
 
+// ------------------------
+// เรียกใช้ bodyParser
+// ------------------------
 app.use(bodyParser.json());
 
+// ------------------------
+// Facebook Webhook Verify
+// ------------------------
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
+
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
     res.status(200).send(challenge);
   } else {
@@ -68,6 +87,9 @@ app.get('/webhook', (req, res) => {
   }
 });
 
+// ------------------------
+// Facebook Webhook Receiver
+// ------------------------
 app.post('/webhook', async (req, res) => {
   if (req.body.object === 'page') {
     for (const entry of req.body.entry) {
@@ -78,32 +100,26 @@ app.post('/webhook', async (req, res) => {
         const messageText = webhookEvent.message.text;
         const history = await getChatHistory(senderId);
         const assistantResponse = await getAssistantResponse(history, messageText);
-
-        // บันทึกประวัติแชทลง DB
         await saveChatHistory(senderId, messageText, assistantResponse);
-
-        // ตรวจสอบและส่งข้อความกลับหาผู้ใช้
         sendTextMessage(senderId, assistantResponse);
-
-        // *** เพิ่มการเรียกเช็คปิดการขายหลังได้ assistantResponse ***
-        checkAndMarkClosed(senderId, assistantResponse);
-
-      } else if (webhookEvent.message && webhookEvent.message.attachments) {
-        // มี attachment
+      }
+      else if (webhookEvent.message && webhookEvent.message.attachments) {
         const attachments = webhookEvent.message.attachments;
         const isImageFound = attachments.some(att => att.type === 'image');
-        let userMessage = isImageFound
-          ? "**ลูกค้าส่งรูปมา**"
-          : "**ลูกค้าส่งไฟล์แนบที่ไม่ใช่รูป**";
 
-        const history = await getChatHistory(senderId);
-        const assistantResponse = await getAssistantResponse(history, userMessage);
-
-        await saveChatHistory(senderId, userMessage, assistantResponse);
-        sendTextMessage(senderId, assistantResponse);
-
-        // *** เพิ่มการเรียกเช็คปิดการขายหลังได้ assistantResponse ***
-        checkAndMarkClosed(senderId, assistantResponse);
+        if (isImageFound) {
+          const userMessage = "**ลูกค้าส่งรูปมา**";
+          const history = await getChatHistory(senderId);
+          const assistantResponse = await getAssistantResponse(history, userMessage);
+          await saveChatHistory(senderId, userMessage, assistantResponse);
+          sendTextMessage(senderId, assistantResponse);
+        } else {
+          const userMessage = "**ลูกค้าส่งไฟล์แนบที่ไม่ใช่รูป**";
+          const history = await getChatHistory(senderId);
+          const assistantResponse = await getAssistantResponse(history, userMessage);
+          await saveChatHistory(senderId, userMessage, assistantResponse);
+          sendTextMessage(senderId, assistantResponse);
+        }
       }
     }
     res.status(200).send('EVENT_RECEIVED');
@@ -112,8 +128,15 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
+/*
+  แทนที่จะเปิด-ปิด MongoDB Client ในทุกฟังก์ชัน
+  เราจะใช้ global client ตัวเดียว
+*/
 let mongoClient = null;
 
+// ------------------------
+// ฟังก์ชัน: เชื่อมต่อ MongoDB (Global client)
+// ------------------------
 async function connectDB() {
   if (!mongoClient) {
     mongoClient = new MongoClient(MONGO_URI);
@@ -123,6 +146,9 @@ async function connectDB() {
   return mongoClient;
 }
 
+// ------------------------
+// ฟังก์ชัน: getChatHistory
+// ------------------------
 async function getChatHistory(senderId) {
   try {
     const client = await connectDB();
@@ -131,8 +157,8 @@ async function getChatHistory(senderId) {
 
     const chats = await collection.find({ senderId }).sort({ timestamp: 1 }).toArray();
     return chats.map(chat => ({
-      role: chat.role,
-      content: chat.content,
+      role: chat.role,       // ใช้ role จากฐานข้อมูล
+      content: chat.content, // ใช้ content จากฐานข้อมูล
     }));
   } catch (error) {
     console.error("Error fetching chat history:", error);
@@ -140,6 +166,9 @@ async function getChatHistory(senderId) {
   }
 }
 
+// ------------------------
+// ฟังก์ชัน: getAssistantResponse
+// ------------------------
 async function getAssistantResponse(history, message) {
   try {
     const messages = [
@@ -148,21 +177,26 @@ async function getAssistantResponse(history, message) {
       { role: "user", content: message },
     ];
 
+    // ต้องมีการประกาศ openai แบบนี้
     const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-    // เลือกรุ่นตามที่คุณต้องการ
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", 
+      model: "gpt-4o", // หรือรุ่นที่ต้องการ
       messages: messages,
     });
 
     return response.choices[0].message.content;
+
   } catch (error) {
     console.error("Error with ChatGPT Assistant:", error);
     return "เกิดข้อผิดพลาดในการเชื่อมต่อกับ Assistant";
   }
 }
 
+
+// ------------------------
+// ฟังก์ชัน: saveChatHistory
+// ------------------------
 async function saveChatHistory(senderId, userMessage, assistantResponse) {
   try {
     const client = await connectDB();
@@ -183,8 +217,11 @@ async function saveChatHistory(senderId, userMessage, assistantResponse) {
       timestamp: new Date(),
     };
 
+    // บันทึกข้อความของผู้ใช้
     await collection.insertOne(userChatRecord);
+    // บันทึกข้อความของผู้ช่วย
     await collection.insertOne(assistantChatRecord);
+
     console.log("บันทึกประวัติการแชทสำเร็จ");
   } catch (error) {
     console.error("Error saving chat history:", error);
@@ -192,79 +229,33 @@ async function saveChatHistory(senderId, userMessage, assistantResponse) {
 }
 
 // ------------------------
-// เพิ่มฟังก์ชันตรวจสอบ และ mark ปิดการขาย
-// ------------------------
-async function checkAndMarkClosed(senderId, assistantResponse) {
-  // เงื่อนไขง่าย ๆ: ถ้าในข้อความ assistantResponse มีคำว่า
-  // “เพื่อเป็นการรับประกันสินค้า รบกวนลูกค้า” ให้ถือว่าปิดการขาย
-  if (assistantResponse.includes("ขอบคุณสำหรับการสั่งซื้อสินค้า")) {
-    await markSaleAsClosed(senderId);
-    await addUserToFollowupLabel(senderId);
-  }else if(assistantResponse.includes("ขอบคุณที่สั่งซื้อสินค้า")) {
-    await markSaleAsClosed(senderId);
-    await addUserToFollowupLabel(senderId);
-  }
-}
-
-async function addUserToFollowupLabel(psid) {
-  return new Promise((resolve, reject) => {
-    request({
-      uri: `https://graph.facebook.com/v12.0/${LABEL_ID}/label`, // LABEL_ID คือ 1234567890
-      qs: { access_token: PAGE_ACCESS_TOKEN },
-      method: 'POST',
-      json: { user: psid },
-    }, (err, resBody) => {
-      if (err) {
-        return reject(err);
-      }
-      resolve(resBody);
-    });
-  });
-}
-
-async function markSaleAsClosed(senderId) {
-  try {
-    const client = await connectDB();
-    const db = client.db("chatbot");
-    const closedSalesCollection = db.collection("closed_sales");
-    // ใช้ updateOne แบบ upsert เพื่อไม่ต้องแทรก duplicate ถ้าเคยปิดไปแล้ว
-    await closedSalesCollection.updateOne(
-      { senderId: senderId },
-      {
-        $set: {
-          senderId: senderId,
-          closedAt: new Date(),
-        },
-      },
-      { upsert: true }
-    );
-
-    console.log("Sale closed for senderId:", senderId);
-  } catch (error) {
-    console.error("Error closing sale:", error);
-  }
-}
-
-
-// ------------------------
-
+// ฟังก์ชัน: sendTextMessage
 // ------------------------
 function sendTextMessage(senderId, response) {
   const Simagex = /\[SEND_IMAGE:(https?:\/\/[^\s]+)\]/g;
+
   const Simage = [...response.matchAll(Simagex)];
 
-  // ตัดคำสั่ง [SEND_IMAGE:...] ออกจากข้อความที่จะส่ง
-  let textPart = response.replace(Simagex, '').trim();
+  // ตัดคำสั่งออกจาก response
+  let textPart = response
+    .replace(Simagex, '')
+    .trim();
 
+  // ส่งข้อความปกติ
   if (textPart.length > 0) {
     sendSimpleTextMessage(senderId, textPart);
   }
+
+  // ส่งรูปแอปริคอต
   Simage.forEach(match => {
     const imageUrl = match[1];
     sendImageMessage(senderId, imageUrl);
   });
 }
 
+// ------------------------
+// ฟังก์ชัน: sendSimpleTextMessage
+// ------------------------
 function sendSimpleTextMessage(senderId, text) {
   const requestBody = {
     recipient: { id: senderId },
@@ -285,6 +276,9 @@ function sendSimpleTextMessage(senderId, text) {
   });
 }
 
+// ------------------------
+// ฟังก์ชัน: sendImageMessage
+// ------------------------
 function sendImageMessage(senderId, imageUrl) {
   const requestBody = {
     recipient: { id: senderId },
@@ -314,11 +308,18 @@ function sendImageMessage(senderId, imageUrl) {
 }
 
 // ------------------------
+// Start Server
+// ------------------------
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+
+  // เรียกเชื่อม MongoDB ตอน start server
   try {
     await connectDB();
+
+    // **ดึง systemInstructions จาก Google Docs มาทันที**
     await fetchSystemInstructions();
+
   } catch (err) {
     console.error("MongoDB connect or Fetch instructions error at startup:", err);
   }
