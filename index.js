@@ -152,7 +152,7 @@ async function getAssistantResponse(history, message) {
 
     // เลือกรุ่นตามที่คุณต้องการ
     const response = await openai.chat.completions.create({
-      model: "gpt-4o", 
+      model: "gpt-4o-mini", 
       messages: messages,
     });
 
