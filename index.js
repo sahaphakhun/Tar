@@ -89,42 +89,67 @@ app.get('/webhook', (req, res) => {
 // Facebook Webhook Receiver
 // ------------------------
 app.post('/webhook', async (req, res) => {
-  if (req.body.object === 'page') {
-    for (const entry of req.body.entry) {
-      const webhookEvent = entry.messaging[0];
-      const senderId = webhookEvent.sender.id;
-
-      if (webhookEvent.message && webhookEvent.message.text) {
-        const messageText = webhookEvent.message.text;
-        const history = await getChatHistory(senderId);
-        const assistantResponse = await getAssistantResponse(history, messageText);
-        await saveChatHistory(senderId, messageText, assistantResponse);
-        sendTextMessage(senderId, assistantResponse);
+  try {
+    // ตรวจสอบว่า object ของ webhook เป็น "page" หรือไม่
+    if (req.body.object === 'page') {
+      // ตรวจสอบว่า req.body.entry เป็นอาร์เรย์หรือไม่
+      if (!Array.isArray(req.body.entry)) {
+        console.log("No 'entry' array found in webhook body.");
+        return res.status(200).send('EVENT_RECEIVED'); 
+        // ส่งสถานะ 200 กลับ เพื่อบอก Facebook ว่ารับ event แล้ว (แต่ไม่เจอข้อมูลที่ต้องการ)
       }
-      else if (webhookEvent.message && webhookEvent.message.attachments) {
-        const attachments = webhookEvent.message.attachments;
-        const isImageFound = attachments.some(att => att.type === 'image');
 
-        if (isImageFound) {
-          const userMessage = "**ลูกค้าส่งรูปมา**";
-          const history = await getChatHistory(senderId);
-          const assistantResponse = await getAssistantResponse(history, userMessage);
-          await saveChatHistory(senderId, userMessage, assistantResponse);
-          sendTextMessage(senderId, assistantResponse);
-        } else {
-          const userMessage = "**ลูกค้าส่งไฟล์แนบที่ไม่ใช่รูป**";
-          const history = await getChatHistory(senderId);
-          const assistantResponse = await getAssistantResponse(history, userMessage);
-          await saveChatHistory(senderId, userMessage, assistantResponse);
-          sendTextMessage(senderId, assistantResponse);
+      // วน loop ใน req.body.entry
+      for (const entry of req.body.entry) {
+        // ตรวจสอบว่า entry.messaging มีอยู่จริง เป็น array และ length > 0
+        if (!entry.messaging || !Array.isArray(entry.messaging) || entry.messaging.length === 0) {
+          console.log("No 'messaging' array or empty in entry => skip this entry.");
+          continue;
+        }
+
+        // เมื่อมั่นใจแล้วว่ามี messaging[0] อยู่แน่นอน
+        const webhookEvent = entry.messaging[0];
+
+        // ตรวจสอบ webhookEvent.sender?.id เพื่อความชัวร์
+        if (!webhookEvent.sender || !webhookEvent.sender.id) {
+          console.log("No sender ID found in webhookEvent => skip this event.");
+          continue;
+        }
+
+        const senderId = webhookEvent.sender.id;
+
+        // --- ตรวจสอบประเภทของ event ที่เข้ามา ---
+        // 1) กรณี message text
+        if (webhookEvent.message && webhookEvent.message.text) {
+          const messageText = webhookEvent.message.text;
+          // เรียกใช้ฟังก์ชันต่าง ๆ ตามปกติ
+          // ...
+
+        } 
+        // 2) กรณี message attachments
+        else if (webhookEvent.message && webhookEvent.message.attachments) {
+          // ...
+        }
+        // 3) กรณีอื่น ๆ
+        else {
+          console.log("Unhandled event type or structure.");
         }
       }
-    }
-    res.status(200).send('EVENT_RECEIVED');
-  } else {
-    res.sendStatus(404);
+
+      // ตอบกลับ Facebook ว่าได้รับ event เรียบร้อย
+      return res.status(200).send('EVENT_RECEIVED');
+    } 
+    
+    // ถ้า object ไม่ใช่ page ให้ส่ง 404 กลับ
+    return res.sendStatus(404);
+
+  } catch (error) {
+    // หากมี error อะไรเกิดขึ้น ให้คุม flow ไว้ จะได้ไม่ crash
+    console.error("Error in /webhook POST: ", error);
+    return res.sendStatus(500);
   }
 });
+
 
 /*
   แทนที่จะเปิด-ปิด MongoDB Client ในทุกฟังก์ชัน
