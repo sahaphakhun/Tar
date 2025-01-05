@@ -74,6 +74,7 @@ app.use(bodyParser.json());
 // Facebook Webhook Verify
 // ------------------------
 app.get('/webhook', (req, res) => {
+  console.log("Full incoming body:", JSON.stringify(req.body, null, 2));
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
@@ -286,7 +287,7 @@ function sendSimpleTextMessage(senderId, text) {
   };
 
   request({
-    uri: 'https://graph.facebook.com/v12.0/me/messages',
+    uri: 'https://graph.facebook.com/v17.0/me/messages',
     qs: { access_token: PAGE_ACCESS_TOKEN },
     method: 'POST',
     json: requestBody,
