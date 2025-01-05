@@ -74,6 +74,7 @@ app.use(bodyParser.json());
 // Facebook Webhook Verify
 // ------------------------
 app.get('/webhook', (req, res) => {
+  console.log("GET /webhook query:", JSON.stringify(req.query, null, 2));
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
@@ -89,26 +90,26 @@ app.get('/webhook', (req, res) => {
 // Facebook Webhook Receiver
 // ------------------------
 app.post('/webhook', async (req, res) => {
-  console.log("Full incoming body:", JSON.stringify(req.body, null, 2));
   try {
+    // แสดง body ทั้งหมดเพื่อดูว่าเป็น event อะไร
+    console.log("POST /webhook body:", JSON.stringify(req.body, null, 2));
+
     // ตรวจสอบว่า object ของ webhook เป็น "page" หรือไม่
     if (req.body.object === 'page') {
       // ตรวจสอบว่า req.body.entry เป็นอาร์เรย์หรือไม่
       if (!Array.isArray(req.body.entry)) {
         console.log("No 'entry' array found in webhook body.");
         return res.status(200).send('EVENT_RECEIVED'); 
-        // ส่งสถานะ 200 กลับ เพื่อบอก Facebook ว่ารับ event แล้ว (แต่ไม่เจอข้อมูลที่ต้องการ)
       }
 
       // วน loop ใน req.body.entry
       for (const entry of req.body.entry) {
         // ตรวจสอบว่า entry.messaging มีอยู่จริง เป็น array และ length > 0
         if (!entry.messaging || !Array.isArray(entry.messaging) || entry.messaging.length === 0) {
-          console.log("No 'messaging' array or empty in entry => skip this entry.");
+          console.log("No 'messaging' array or empty => skip this entry.");
           continue;
         }
 
-        // เมื่อมั่นใจแล้วว่ามี messaging[0] อยู่แน่นอน
         const webhookEvent = entry.messaging[0];
 
         // ตรวจสอบ webhookEvent.sender?.id เพื่อความชัวร์
@@ -119,38 +120,54 @@ app.post('/webhook', async (req, res) => {
 
         const senderId = webhookEvent.sender.id;
 
-        // --- ตรวจสอบประเภทของ event ที่เข้ามา ---
-        // 1) กรณี message text
+        // ตรวจสอบประเภทของ event
         if (webhookEvent.message && webhookEvent.message.text) {
+          // เคสข้อความ (Text)
           const messageText = webhookEvent.message.text;
-          // เรียกใช้ฟังก์ชันต่าง ๆ ตามปกติ
-          // ...
 
-        } 
-        // 2) กรณี message attachments
-        else if (webhookEvent.message && webhookEvent.message.attachments) {
-          // ...
-        }
-        // 3) กรณีอื่น ๆ
-        else {
-          console.log("Unhandled event type or structure.");
+          // เรียกประวัติแชท
+          const history = await getChatHistory(senderId);
+          // ให้ Assistant ตอบ
+          const assistantResponse = await getAssistantResponse(history, messageText);
+          // บันทึกและส่งข้อความ
+          await saveChatHistory(senderId, messageText, assistantResponse);
+          sendTextMessage(senderId, assistantResponse);
+
+        } else if (webhookEvent.message && webhookEvent.message.attachments) {
+          // เคสไฟล์แนบ (Attachments)
+          const attachments = webhookEvent.message.attachments;
+          const isImageFound = attachments.some(att => att.type === 'image');
+
+          let userMessage = "";
+          if (isImageFound) {
+            userMessage = "**ลูกค้าส่งรูปมา**";
+          } else {
+            userMessage = "**ลูกค้าส่งไฟล์แนบที่ไม่ใช่รูป**";
+          }
+
+          const history = await getChatHistory(senderId);
+          const assistantResponse = await getAssistantResponse(history, userMessage);
+          await saveChatHistory(senderId, userMessage, assistantResponse);
+          sendTextMessage(senderId, assistantResponse);
+
+        } else {
+          // ไม่เข้าข่ายข้อความหรือไฟล์แนบ
+          console.log("Unhandled event type or structure:", JSON.stringify(webhookEvent, null, 2));
         }
       }
 
-      // ตอบกลับ Facebook ว่าได้รับ event เรียบร้อย
+      // ตอบกลับ Facebook ว่าได้รับ event แล้ว
       return res.status(200).send('EVENT_RECEIVED');
     } 
     
-    // ถ้า object ไม่ใช่ page ให้ส่ง 404 กลับ
+    // ถ้า object ไม่ใช่ 'page' -> 404
     return res.sendStatus(404);
 
   } catch (error) {
-    // หากมี error อะไรเกิดขึ้น ให้คุม flow ไว้ จะได้ไม่ crash
     console.error("Error in /webhook POST: ", error);
     return res.sendStatus(500);
   }
 });
-
 
 /*
   แทนที่จะเปิด-ปิด MongoDB Client ในทุกฟังก์ชัน
@@ -181,8 +198,8 @@ async function getChatHistory(senderId) {
 
     const chats = await collection.find({ senderId }).sort({ timestamp: 1 }).toArray();
     return chats.map(chat => ({
-      role: chat.role,       // ใช้ role จากฐานข้อมูล
-      content: chat.content, // ใช้ content จากฐานข้อมูล
+      role: chat.role,
+      content: chat.content,
     }));
   } catch (error) {
     console.error("Error fetching chat history:", error);
@@ -201,11 +218,11 @@ async function getAssistantResponse(history, message) {
       { role: "user", content: message },
     ];
 
-    // ต้องมีการประกาศ openai แบบนี้
     const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
+    // คุณอาจเปลี่ยนโมเดลเป็น gpt-3.5-turbo หรือรุ่นอื่น ๆ ตามต้องการ
     const response = await openai.chat.completions.create({
-      model: "gpt-4o", // หรือรุ่นที่ต้องการ
+      model: "gpt-4o",
       messages: messages,
     });
 
@@ -216,7 +233,6 @@ async function getAssistantResponse(history, message) {
     return "เกิดข้อผิดพลาดในการเชื่อมต่อกับ Assistant";
   }
 }
-
 
 // ------------------------
 // ฟังก์ชัน: saveChatHistory
@@ -257,20 +273,17 @@ async function saveChatHistory(senderId, userMessage, assistantResponse) {
 // ------------------------
 function sendTextMessage(senderId, response) {
   const Simagex = /\[SEND_IMAGE:(https?:\/\/[^\s]+)\]/g;
-
   const Simage = [...response.matchAll(Simagex)];
 
-  // ตัดคำสั่งออกจาก response
-  let textPart = response
-    .replace(Simagex, '')
-    .trim();
+  // ตัดคำสั่ง [SEND_IMAGE:...] ออกจากข้อความที่จะส่ง
+  let textPart = response.replace(Simagex, '').trim();
 
-  // ส่งข้อความปกติ
+  // ส่งข้อความปกติ (ถ้ามี)
   if (textPart.length > 0) {
     sendSimpleTextMessage(senderId, textPart);
   }
 
-  // ส่งรูปแอปริคอต
+  // ส่งรูป (ถ้ามี [SEND_IMAGE:...])
   Simage.forEach(match => {
     const imageUrl = match[1];
     sendImageMessage(senderId, imageUrl);
@@ -287,15 +300,20 @@ function sendSimpleTextMessage(senderId, text) {
   };
 
   request({
-    uri: 'https://graph.facebook.com/v17.0/me/messages',
+    uri: 'https://graph.facebook.com/v17.0/me/messages', // ปรับเป็น v17.0
     qs: { access_token: PAGE_ACCESS_TOKEN },
     method: 'POST',
     json: requestBody,
-  }, (err) => {
-    if (!err) {
-      console.log('ข้อความถูกส่งสำเร็จ!');
+  }, (err, resFB, bodyFB) => {
+    if (err) {
+      console.error('ส่งข้อความไม่สำเร็จ (มี error):', err);
     } else {
-      console.error('ไม่สามารถส่งข้อความ:', err);
+      // ตรวจสอบ response จาก Facebook (bodyFB)
+      if (bodyFB && bodyFB.error) {
+        console.error("ส่งข้อความไม่สำเร็จ (Facebook error):", bodyFB.error);
+      } else {
+        console.log('ส่งข้อความสำเร็จ! responseFB =', bodyFB);
+      }
     }
   });
 }
@@ -318,15 +336,19 @@ function sendImageMessage(senderId, imageUrl) {
   };
 
   request({
-    uri: 'https://graph.facebook.com/v12.0/me/messages',
+    uri: 'https://graph.facebook.com/v17.0/me/messages', // ปรับเป็น v17.0
     qs: { access_token: PAGE_ACCESS_TOKEN },
     method: 'POST',
     json: requestBody,
-  }, (err) => {
-    if (!err) {
-      console.log('รูปภาพถูกส่งสำเร็จ!');
-    } else {
+  }, (err, resFB, bodyFB) => {
+    if (err) {
       console.error('ไม่สามารถส่งรูปภาพ:', err);
+    } else {
+      if (bodyFB && bodyFB.error) {
+        console.error("ส่งรูปภาพไม่สำเร็จ (Facebook error):", bodyFB.error);
+      } else {
+        console.log('รูปภาพถูกส่งสำเร็จ! responseFB =', bodyFB);
+      }
     }
   });
 }
@@ -341,7 +363,7 @@ app.listen(PORT, async () => {
   try {
     await connectDB();
 
-    // **ดึง systemInstructions จาก Google Docs มาทันที**
+    // ดึง systemInstructions จาก Google Docs ทันทีที่เซิร์ฟเวอร์เริ่ม
     await fetchSystemInstructions();
 
   } catch (err) {
