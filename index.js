@@ -74,7 +74,6 @@ app.use(bodyParser.json());
 // Facebook Webhook Verify
 // ------------------------
 app.get('/webhook', (req, res) => {
-  console.log("Full incoming body:", JSON.stringify(req.body, null, 2));
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
@@ -90,6 +89,7 @@ app.get('/webhook', (req, res) => {
 // Facebook Webhook Receiver
 // ------------------------
 app.post('/webhook', async (req, res) => {
+  console.log("Full incoming body:", JSON.stringify(req.body, null, 2));
   try {
     // ตรวจสอบว่า object ของ webhook เป็น "page" หรือไม่
     if (req.body.object === 'page') {
