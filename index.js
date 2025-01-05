@@ -224,6 +224,7 @@ async function getAssistantResponse(history, message) {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: messages,
+      temperature: 0.5
     });
 
     return response.choices[0].message.content;
