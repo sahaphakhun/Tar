@@ -222,9 +222,9 @@ async function getAssistantResponse(history, message) {
 
     // คุณอาจเปลี่ยนโมเดลเป็น gpt-3.5-turbo หรือรุ่นอื่น ๆ ตามต้องการ
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: messages,
-      temperature: 0.5
+      temperature: 0.3
     });
 
     return response.choices[0].message.content;
