@@ -201,10 +201,6 @@ function sendTextMessage(senderId, response) {
   const images = [...response.matchAll(imageRegex)];
 
   let textPart = response.replace(imageRegex, '').trim();
-  if (images.length > 1) {
-    // ถ้ามีรูปหลายรูป ตัด Newline ทิ้งเพื่อไม่ให้ข้อความดูยาวเกิน
-    textPart = textPart.replace(/\r?\n/g, ' ');
-  }
 
   if (textPart.length > 0) {
     sendSimpleTextMessage(senderId, textPart);
