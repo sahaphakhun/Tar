@@ -188,7 +188,7 @@ async function getAssistantResponse(systemInstructions, history, userMessage) {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini", // หรือ gpt-4
       messages,
-      temperature: 0.15,
+      temperature: 0.5,
     });
     console.log(">> [OpenAI] Response received:", new Date().toISOString());
 
@@ -267,15 +267,33 @@ app.get('/webhook', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   if (req.body.object === 'page') {
+
+    // วนลูปทีละ entry
     for (const entry of req.body.entry) {
+
+      // ตรวจสอบว่ามี key 'messaging' และเป็น array ที่ไม่ว่างหรือไม่
+      if (!entry.messaging || entry.messaging.length === 0) {
+        console.log(">> [Webhook] No messaging in this entry. Skipping:", JSON.stringify(entry));
+        continue;
+      }
+
+      // ถ้าผ่านเงื่อนไขมา แปลว่ามี messaging อย่างน้อย 1 ตัว
       const webhookEvent = entry.messaging[0];
-      const senderId = webhookEvent.sender.id;
+
+      // ตรวจสอบ senderId ก่อน (ป้องกันกรณีไม่มี sender)
+      const senderId = webhookEvent.sender && webhookEvent.sender.id;
+      if (!senderId) {
+        console.log(">> [Webhook] No sender found. Skipping this event:", webhookEvent);
+        continue;
+      }
+
       console.log(">> [Webhook] Event received:", senderId, new Date().toISOString());
 
+      // 1) หากเป็นข้อความ (ข้อความปกติ)
       if (webhookEvent.message && webhookEvent.message.text) {
         const userMsg = webhookEvent.message.text;
         console.log(">> [Webhook] userMsg:", userMsg);
-        
+
         console.log(">> [Webhook] Start getChatHistory", new Date().toISOString());
         const history = await getChatHistory(senderId);
         console.log(">> [Webhook] Done getChatHistory", new Date().toISOString());
@@ -287,6 +305,30 @@ app.post('/webhook', async (req, res) => {
         const assistantMsg = await getAssistantResponse(systemInstructions, history, userMsg);
         console.log(">> [Webhook] Done getAssistantResponse", new Date().toISOString());
 
+        console.log(">> [Webhook] Start saveChatHistory", new Date().toISOString());
+        await saveChatHistory(senderId, userMsg, assistantMsg);
+        console.log(">> [Webhook] Done saveChatHistory", new Date().toISOString());
+
+        sendTextMessage(senderId, assistantMsg);
+
+      // 2) หากเป็นไฟล์แนบ (เช่น รูปภาพ)
+      } else if (webhookEvent.message && webhookEvent.message.attachments) {
+        let userMsg = "**ลูกค้าส่งไฟล์แนบหรือรูป**";
+        const attachments = webhookEvent.message.attachments;
+        const hasImage = attachments.some(a => a.type === 'image');
+        if (hasImage) userMsg = "**ลูกค้าส่งรูปมา**";
+
+        console.log(">> [Webhook] userMsg (attachment):", userMsg);
+
+        console.log(">> [Webhook] Start getChatHistory", new Date().toISOString());
+        const history = await getChatHistory(senderId);
+        console.log(">> [Webhook] Done getChatHistory", new Date().toISOString());
+
+        const systemInstructions = buildSystemInstructions();
+
+        console.log(">> [Webhook] Start getAssistantResponse", new Date().toISOString());
+        const assistantMsg = await getAssistantResponse(systemInstructions, history, userMsg);
+        console.log(">> [Webhook] Done getAssistantResponse", new Date().toISOString());
 
         console.log(">> [Webhook] Start saveChatHistory", new Date().toISOString());
         await saveChatHistory(senderId, userMsg, assistantMsg);
@@ -294,25 +336,18 @@ app.post('/webhook', async (req, res) => {
 
         sendTextMessage(senderId, assistantMsg);
 
-      } else if (webhookEvent.message && webhookEvent.message.attachments) {
-        let userMsg = "**ลูกค้าส่งไฟล์แนบหรือรูป**";
-        const attachments = webhookEvent.message.attachments;
-        const hasImage = attachments.some(a => a.type === 'image');
-        if (hasImage) userMsg = "**ลูกค้าส่งรูปมา**";
-
-        const history = await getChatHistory(senderId);
-        const systemInstructions = buildSystemInstructions();
-        const assistantMsg = await getAssistantResponse(systemInstructions, history, userMsg);
-
-        await saveChatHistory(senderId, userMsg, assistantMsg);
-        sendTextMessage(senderId, assistantMsg);
+      // 3) กรณีอื่น ๆ
+      } else {
+        console.log(">> [Webhook] Received event but not a text/attachment message:", webhookEvent);
       }
     }
+
     res.status(200).send("EVENT_RECEIVED");
   } else {
     res.sendStatus(404);
   }
 });
+
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT} - ${new Date().toISOString()}`);
