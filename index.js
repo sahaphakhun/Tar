@@ -42,10 +42,12 @@ async function connectDB() {
 }
 
 async function getChatHistory(senderId) {
+  console.log(">> [MongoDB] getChatHistory START", senderId, new Date().toISOString());
   const client = await connectDB();
   const db = client.db("chatbot");
   const coll = db.collection("chat_history");
   const chats = await coll.find({ senderId }).sort({ timestamp: 1 }).toArray();
+  console.log(">> [MongoDB] getChatHistory END", senderId, new Date().toISOString());
   return chats.map(ch => ({
     role: ch.role,
     content: ch.content,
@@ -53,6 +55,7 @@ async function getChatHistory(senderId) {
 }
 
 async function saveChatHistory(senderId, userMsg, assistantMsg) {
+  console.log(">> [MongoDB] saveChatHistory START", senderId, new Date().toISOString());
   const client = await connectDB();
   const db = client.db("chatbot");
   const coll = db.collection("chat_history");
@@ -68,6 +71,7 @@ async function saveChatHistory(senderId, userMsg, assistantMsg) {
     content: assistantMsg,
     timestamp: new Date(),
   });
+  console.log(">> [MongoDB] saveChatHistory END", senderId, new Date().toISOString());
 }
 
 // ====================== 3) ดึง systemInstructions จาก Google Docs ======================
@@ -173,18 +177,20 @@ Rules:
 // ====================== 6) เรียก GPT ======================
 async function getAssistantResponse(systemInstructions, history, userMessage) {
   try {
+    console.log(">> [OpenAI] Start request:", new Date().toISOString());
     const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
     const messages = [
       { role: "system", content: systemInstructions },
       ...history,
       { role: "user", content: userMessage },
     ];
-
+    
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini", // หรือ gpt-4
       messages,
-      temperature: 0.2,
+      temperature: 0.15,
     });
+    console.log(">> [OpenAI] Response received:", new Date().toISOString());
 
     const assistantReply = response.choices[0].message.content.trim();
     return assistantReply;
@@ -264,16 +270,28 @@ app.post('/webhook', async (req, res) => {
     for (const entry of req.body.entry) {
       const webhookEvent = entry.messaging[0];
       const senderId = webhookEvent.sender.id;
+      console.log(">> [Webhook] Event received:", senderId, new Date().toISOString());
 
       if (webhookEvent.message && webhookEvent.message.text) {
         const userMsg = webhookEvent.message.text;
+        console.log(">> [Webhook] userMsg:", userMsg);
+        
+        console.log(">> [Webhook] Start getChatHistory", new Date().toISOString());
         const history = await getChatHistory(senderId);
+        console.log(">> [Webhook] Done getChatHistory", new Date().toISOString());
 
         // สร้าง systemInstructions ใหม่ทุกครั้ง (เผื่อ sheet อัปเดตใหม่)
         const systemInstructions = buildSystemInstructions();
-        const assistantMsg = await getAssistantResponse(systemInstructions, history, userMsg);
 
+        console.log(">> [Webhook] Start getAssistantResponse", new Date().toISOString());
+        const assistantMsg = await getAssistantResponse(systemInstructions, history, userMsg);
+        console.log(">> [Webhook] Done getAssistantResponse", new Date().toISOString());
+
+
+        console.log(">> [Webhook] Start saveChatHistory", new Date().toISOString());
         await saveChatHistory(senderId, userMsg, assistantMsg);
+        console.log(">> [Webhook] Done saveChatHistory", new Date().toISOString());
+
         sendTextMessage(senderId, assistantMsg);
 
       } else if (webhookEvent.message && webhookEvent.message.attachments) {
@@ -297,7 +315,7 @@ app.post('/webhook', async (req, res) => {
 });
 
 app.listen(PORT, async () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT} - ${new Date().toISOString()}`);
 
   try {
     // 1) เชื่อมต่อ DB
