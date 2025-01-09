@@ -188,7 +188,7 @@ async function getAssistantResponse(systemInstructions, history, userMessage) {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini", // หรือ gpt-4
       messages,
-      temperature: 0.5,
+      temperature: 0.4,
     });
     console.log(">> [OpenAI] Response received:", new Date().toISOString());
 
