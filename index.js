@@ -267,20 +267,14 @@ app.get('/webhook', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   if (req.body.object === 'page') {
-
-    // วนลูปทีละ entry
     for (const entry of req.body.entry) {
-
-      // ตรวจสอบว่ามี key 'messaging' และเป็น array ที่ไม่ว่างหรือไม่
+      // ตรวจสอบก่อนว่า messaging มีหรือไม่
       if (!entry.messaging || entry.messaging.length === 0) {
         console.log(">> [Webhook] No messaging in this entry. Skipping:", JSON.stringify(entry));
         continue;
       }
 
-      // ถ้าผ่านเงื่อนไขมา แปลว่ามี messaging อย่างน้อย 1 ตัว
       const webhookEvent = entry.messaging[0];
-
-      // ตรวจสอบ senderId ก่อน (ป้องกันกรณีไม่มี sender)
       const senderId = webhookEvent.sender && webhookEvent.sender.id;
       if (!senderId) {
         console.log(">> [Webhook] No sender found. Skipping this event:", webhookEvent);
@@ -289,7 +283,7 @@ app.post('/webhook', async (req, res) => {
 
       console.log(">> [Webhook] Event received:", senderId, new Date().toISOString());
 
-      // 1) หากเป็นข้อความ (ข้อความปกติ)
+      // ===== 1) เคสเป็น "ข้อความ" แบบ text =====
       if (webhookEvent.message && webhookEvent.message.text) {
         const userMsg = webhookEvent.message.text;
         console.log(">> [Webhook] userMsg:", userMsg);
@@ -298,7 +292,6 @@ app.post('/webhook', async (req, res) => {
         const history = await getChatHistory(senderId);
         console.log(">> [Webhook] Done getChatHistory", new Date().toISOString());
 
-        // สร้าง systemInstructions ใหม่ทุกครั้ง (เผื่อ sheet อัปเดตใหม่)
         const systemInstructions = buildSystemInstructions();
 
         console.log(">> [Webhook] Start getAssistantResponse", new Date().toISOString());
@@ -311,37 +304,59 @@ app.post('/webhook', async (req, res) => {
 
         sendTextMessage(senderId, assistantMsg);
 
-      // 2) หากเป็นไฟล์แนบ (เช่น รูปภาพ)
+      // ===== 2) เคสเป็นไฟล์แนบ (attachments) =====
       } else if (webhookEvent.message && webhookEvent.message.attachments) {
-        let userMsg = "**ลูกค้าส่งไฟล์แนบหรือรูป**";
         const attachments = webhookEvent.message.attachments;
         const hasImage = attachments.some(a => a.type === 'image');
-        if (hasImage) userMsg = "**ลูกค้าส่งรูปมา**";
 
-        console.log(">> [Webhook] userMsg (attachment):", userMsg);
+        // === 2.1) ถ้ามีไฟล์แนบเป็นรูปภาพ
+        if (hasImage) {
+          console.log(">> [Webhook] User sent image(s).");
+          let userMsg = "**ลูกค้าส่งรูปมา**";
 
-        console.log(">> [Webhook] Start getChatHistory", new Date().toISOString());
-        const history = await getChatHistory(senderId);
-        console.log(">> [Webhook] Done getChatHistory", new Date().toISOString());
+          console.log(">> [Webhook] Start getChatHistory", new Date().toISOString());
+          const history = await getChatHistory(senderId);
+          console.log(">> [Webhook] Done getChatHistory", new Date().toISOString());
 
-        const systemInstructions = buildSystemInstructions();
+          const systemInstructions = buildSystemInstructions();
 
-        console.log(">> [Webhook] Start getAssistantResponse", new Date().toISOString());
-        const assistantMsg = await getAssistantResponse(systemInstructions, history, userMsg);
-        console.log(">> [Webhook] Done getAssistantResponse", new Date().toISOString());
+          console.log(">> [Webhook] Start getAssistantResponse", new Date().toISOString());
+          const assistantMsg = await getAssistantResponse(systemInstructions, history, userMsg);
+          console.log(">> [Webhook] Done getAssistantResponse", new Date().toISOString());
 
-        console.log(">> [Webhook] Start saveChatHistory", new Date().toISOString());
-        await saveChatHistory(senderId, userMsg, assistantMsg);
-        console.log(">> [Webhook] Done saveChatHistory", new Date().toISOString());
+          console.log(">> [Webhook] Start saveChatHistory", new Date().toISOString());
+          await saveChatHistory(senderId, userMsg, assistantMsg);
+          console.log(">> [Webhook] Done saveChatHistory", new Date().toISOString());
 
-        sendTextMessage(senderId, assistantMsg);
+          sendTextMessage(senderId, assistantMsg);
 
-      // 3) กรณีอื่น ๆ
+        // === 2.2) ถ้าเป็นไฟล์แนบประเภทอื่น (เช่น documents, location, etc.)
+        } else {
+          console.log(">> [Webhook] User sent attachment (non-image).");
+          let userMsg = "**ลูกค้าส่งไฟล์แนบ**";
+
+          console.log(">> [Webhook] Start getChatHistory", new Date().toISOString());
+          const history = await getChatHistory(senderId);
+          console.log(">> [Webhook] Done getChatHistory", new Date().toISOString());
+
+          const systemInstructions = buildSystemInstructions();
+
+          console.log(">> [Webhook] Start getAssistantResponse", new Date().toISOString());
+          const assistantMsg = await getAssistantResponse(systemInstructions, history, userMsg);
+          console.log(">> [Webhook] Done getAssistantResponse", new Date().toISOString());
+
+          console.log(">> [Webhook] Start saveChatHistory", new Date().toISOString());
+          await saveChatHistory(senderId, userMsg, assistantMsg);
+          console.log(">> [Webhook] Done saveChatHistory", new Date().toISOString());
+
+          sendTextMessage(senderId, assistantMsg);
+        }
+
+      // ===== 3) กรณีอื่น ๆ
       } else {
-        console.log(">> [Webhook] Received event but not a text/attachment message:", webhookEvent);
+        console.log(">> [Webhook] Received event but not a text or recognized attachment:", webhookEvent);
       }
     }
-
     res.status(200).send("EVENT_RECEIVED");
   } else {
     res.sendStatus(404);
