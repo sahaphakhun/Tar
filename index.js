@@ -157,12 +157,12 @@ function buildSystemInstructions() {
 
   // ผสานกับข้อความจาก Google Docs
   const finalSystemInstructions = `
-You are an AI chatbot for an English course. 
-Below are instructions from the Google Doc:
+คุณเป็นแชทบอท AI สำหรับ "เซียนต้าร์ พุทธคุณ" เพื่อขายสินค้า
+ด้านล่างนี้เป็นคำแนะนำจาก Google Doc:
 ---
 ${googleDocInstructions}
 
-Below is additional data from Google Sheets:
+ด้านล่างนี้เป็นข้อมูลเพิ่มเติมจาก Google Sheets:
 ---
 ${sheetsDataString}
 
