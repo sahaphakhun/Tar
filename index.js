@@ -25,9 +25,9 @@ const MONGO_URI = process.env.MONGO_URI;
 
 const GOOGLE_CLIENT_EMAIL = "aitar-888@eminent-wares-446512-j8.iam.gserviceaccount.com";
 const GOOGLE_PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDGhyeINArKZgaV\nitEcK+o89ilPYeRNTNZgJT7VNHB5hgNLLeAcFLJ7IlCIqTLMoJEnnoDQil6aKaz8\nExVL83uSXRrzk4zQvtt3tIP31+9wOCb9D4ZGWfVP1tD0qdD4WJ1qqg1j1/8879pH\nUeQGEMuCnyVbcQ3GbYQjyYb3wEz/Qv7kMVggF+MIaGGw2NQwM0XcufSFtyxvvX2S\nb8uGc1A8R+Dn/tmcgMODhbtEgcMg6yXI5Y26MPfDjVrEbk0lfCr7IGFJX4ASYeKl\n0jhm0RGb+aya2cb55auLN3VPO5MQ+cOp8gHBf5GiC/YgF1gbRgF5b7LgmENBxSfH\nb3WVQodLAgMBAAECggEACKB14M7LdekXZHyAQrZL0EitbzQknLv33Xyw2B3rvJ7M\nr4HM/nC4eBj7y+ciUc8GZQ+CWc2GzTHTa66+mwAia1qdYbPp3LuhGM4Leq5zn/o+\nA3rJuG6PS4qyUMy89msPXW5fSj/oE535QREiFKYP2dtlia2GI4xoag+x9uZwfMUO\nWKEe7tiUoZQEiGhwtjLq9lyST4kGGmlhNee9OyhDJcw4uCt8Cepr++hMDleWUF6c\nX0nbGmoSS0sZ5Boy8ATMhw/3luaOAlTUEz/nVDvbbWlNL9etwLKiAVw+AQXsPHNW\nNWF7gyEIsEi0qSM3PtA1X7IdReRXHqmfiZs0J3qSQQKBgQD1+Yj37Yuqj8hGi5PY\n+M0ieMdGcbUOmJsM1yUmBMV4bfaTiqm504P6DIYAqfDDWeozcHwcdpG1AfFAihEi\nh6lb0qRk8YaGbzvac8mWhwo/jDA5QB97fjFa6uwtlewZ0Er/U3QmOeVVnVC1y1b0\nrbJD5yjvI3ve+gpwAz0glpIMiwKBgQDOnpD7p7ylG4NQunqmzzdozrzZP0L6EZyE\n141st/Hsp9rtO9/ADuH6WhpirQ516l5LLv7mLPA8S9CF/cSdWF/7WlxBPjM8WRs9\nACFNBJIwUfjzPnvECmtsayzRlKuyCAspnNSkzgtdtvf2xI82Z3BGov9goZfu+D4A\n36b1qXsIQQKBgQCO1CojhO0vyjPKOuxL9hTvqmBUWFyBMD4AU8F/dQ/RYVDn1YG+\npMKi5Li/E+75EHH9EpkO0g7Do3AaQNG4UjwWVJcfAlxSHa8Mp2VsIdfilJ2/8KsX\nQ2yXVYh04/Rn/No/ro7oT4AKmcGu/nbstxuncEgFrH4WOOzspATPsn72BwKBgG5N\nBAT0NKbHm0B7bIKkWGYhB3vKY8zvnejk0WDaidHWge7nabkzuLtXYoKO9AtKxG/K\ndNUX5F+r8XO2V0HQLd0XDezecaejwgC8kwp0iD43ZHkmQBgVn+dPB6wSe94coSjj\nyjj4reSnipQ3tmRKsAtldIN3gI5YA3Gf85dtlHqBAoGAD5ePt7cmu3tDZhA3A8f9\no8mNPvqz/WGs7H2Qgjyfc3jUxEGhVt1Su7J1j+TppfkKtJIDKji6rVA9oIjZtpZT\ngxnU6hcYuiwbLh3wGEFIjP1XeYYILudqfWOEbwnxD1RgMkCqfSHf/niWlfiH6p3F\ndnBsLY/qXdKfS/OXyezAm4M=\n-----END PRIVATE KEY-----\n";
-const GOOGLE_DOC_ID = "1-fSovnXKbRmSu45T_oeT2vnZOfqcDkkO0Xk3VaBZhpg";   // ใส่ ID ของ Google Docs
-const SPREADSHEET_ID = "1cNJOeVYqwl29CLDWBUurmKHQzVIqoiIF434nkqbAWNY"; // ใส่ ID ของ Google Sheets
-const SHEET_RANGE = "ชีต1!A2:B18";               // ช่วงข้อมูลใน Google Sheets
+const GOOGLE_DOC_ID = "1-fSovnXKbRmSu45T_oeT2vnZOfqcDkkO0Xk3VaBZhpg";   
+const SPREADSHEET_ID = "1cNJOeVYqwl29CLDWBUurmKHQzVIqoiIF434nkqbAWNY"; 
+const SHEET_RANGE = "ชีต1!A2:B18";               
 
 // ====================== 2) MongoDB ======================
 let mongoClient = null;
@@ -268,7 +268,6 @@ app.get('/webhook', (req, res) => {
 app.post('/webhook', async (req, res) => {
   if (req.body.object === 'page') {
     for (const entry of req.body.entry) {
-      // ตรวจสอบก่อนว่า messaging มีหรือไม่
       if (!entry.messaging || entry.messaging.length === 0) {
         console.log(">> [Webhook] No messaging in this entry. Skipping:", JSON.stringify(entry));
         continue;
@@ -282,6 +281,14 @@ app.post('/webhook', async (req, res) => {
       }
 
       console.log(">> [Webhook] Event received:", senderId, new Date().toISOString());
+
+      // [MOD] 1) ตรวจสอบก่อนว่าเป็นสติ๊กเกอร์หรือไม่
+      // ถ้าเป็นสติ๊กเกอร์ (มี sticker_id ใน message) เราจะไม่ตอบ
+      if (webhookEvent.message && webhookEvent.message.sticker_id) {
+        console.log(">> [Webhook] User sent a sticker. No response.");
+        // ทำอะไร (ไม่ทำอะไร) แล้วข้ามไป
+        continue;
+      }
 
       // ===== 1) เคสเป็น "ข้อความ" แบบ text =====
       if (webhookEvent.message && webhookEvent.message.text) {
@@ -309,7 +316,7 @@ app.post('/webhook', async (req, res) => {
         const attachments = webhookEvent.message.attachments;
         const hasImage = attachments.some(a => a.type === 'image');
 
-        // === 2.1) ถ้ามีไฟล์แนบเป็นรูปภาพ
+        // [MOD] 2.1) ถ้ามีไฟล์แนบเป็นรูปภาพ => ตอบตาม system instruction
         if (hasImage) {
           console.log(">> [Webhook] User sent image(s).");
           let userMsg = "**ลูกค้าส่งรูปมา**";
@@ -330,26 +337,11 @@ app.post('/webhook', async (req, res) => {
 
           sendTextMessage(senderId, assistantMsg);
 
-        // === 2.2) ถ้าเป็นไฟล์แนบประเภทอื่น (เช่น documents, location, etc.)
+        // [MOD] 2.2) ถ้าเป็นไฟล์แนบประเภทอื่น (ไม่ใช่รูป) => ไม่ต้องตอบ
         } else {
-          console.log(">> [Webhook] User sent attachment (non-image).");
-          let userMsg = "**ลูกค้าส่งไฟล์แนบ**";
-
-          console.log(">> [Webhook] Start getChatHistory", new Date().toISOString());
-          const history = await getChatHistory(senderId);
-          console.log(">> [Webhook] Done getChatHistory", new Date().toISOString());
-
-          const systemInstructions = buildSystemInstructions();
-
-          console.log(">> [Webhook] Start getAssistantResponse", new Date().toISOString());
-          const assistantMsg = await getAssistantResponse(systemInstructions, history, userMsg);
-          console.log(">> [Webhook] Done getAssistantResponse", new Date().toISOString());
-
-          console.log(">> [Webhook] Start saveChatHistory", new Date().toISOString());
-          await saveChatHistory(senderId, userMsg, assistantMsg);
-          console.log(">> [Webhook] Done saveChatHistory", new Date().toISOString());
-
-          sendTextMessage(senderId, assistantMsg);
+          console.log(">> [Webhook] User sent a non-image attachment. No response.");
+          // ไม่ทำอะไรแล้วข้ามไปเลย
+          continue;
         }
 
       // ===== 3) กรณีอื่น ๆ
