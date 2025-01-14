@@ -319,7 +319,28 @@ app.post('/webhook', async (req, res) => {
         // [MOD] 2.1) ถ้ามีไฟล์แนบเป็นรูปภาพ => ตอบตาม system instruction
         if (hasImage) {
           console.log(">> [Webhook] User sent image(s).");
-          let userMsg = "**ลูกค้าส่งรูปมา**";
+
+          // --- เปลี่ยนจาก string เป็น array เพื่อวิเคราะห์รูป ---
+          // เก็บข้อความนำ + object รูปไว้ใน array
+          let userMsg = [
+            {
+              type: "text",
+              text: "ลูกค้าส่งรูปมา"
+            }
+          ];
+
+          // สำหรับทุก attachment ที่เป็นภาพ ให้สร้าง object image_url
+          for (const att of attachments) {
+            if (att.type === 'image' && att.payload && att.payload.url) {
+              userMsg.push({
+                type: "image_url",
+                image_url: {
+                  url: att.payload.url,
+                  detail: "auto" // หรือ "low"/"high" ก็ได้
+                }
+              });
+            }
+          }
 
           console.log(">> [Webhook] Start getChatHistory", new Date().toISOString());
           const history = await getChatHistory(senderId);
@@ -332,7 +353,8 @@ app.post('/webhook', async (req, res) => {
           console.log(">> [Webhook] Done getAssistantResponse", new Date().toISOString());
 
           console.log(">> [Webhook] Start saveChatHistory", new Date().toISOString());
-          await saveChatHistory(senderId, userMsg, assistantMsg);
+          // บันทึกข้อความ userMsg เป็น JSON string หรือจะเก็บ array ตรง ๆ ก็ได้
+          await saveChatHistory(senderId, JSON.stringify(userMsg), assistantMsg);
           console.log(">> [Webhook] Done saveChatHistory", new Date().toISOString());
 
           sendTextMessage(senderId, assistantMsg);
