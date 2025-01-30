@@ -301,7 +301,7 @@ async function getAssistantResponse(systemInstructions, history, userContent) {
 
     // เรียกโมเดลหลัก
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages,
       temperature: 0.3,
     });
